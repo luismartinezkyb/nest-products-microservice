@@ -4,16 +4,19 @@ import {
   Controller,
   Delete,
   Get,
+  HttpStatus,
   Inject,
   Param,
   Patch,
   Post,
   Query,
 } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
+import { catchError, firstValueFrom } from 'rxjs';
 import { PaginationDto } from 'src/common';
 import { PRODUCT_SERVICE } from 'src/config';
+import { CreateProductDto } from './dto/create-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 
 @Controller('products')
 export class ProductsController {
@@ -22,8 +25,24 @@ export class ProductsController {
   ) {}
 
   @Post()
-  createProduct() {
-    return 'CreateProduct';
+  async createProduct(@Body() data: CreateProductDto) {
+    try {
+      const product = await firstValueFrom(
+        this.products_client.send(
+          { cmd: 'create_product' },
+          {
+            ...data,
+          },
+        ),
+      );
+      return product;
+    } catch (error) {
+      // console.log({ error });
+      throw new RpcException({
+        status: HttpStatus.UNAUTHORIZED,
+        message: `Product not created`,
+      });
+    }
   }
   @Get()
   getProducts(@Query() paginationDto: PaginationDto) {
@@ -47,16 +66,75 @@ export class ProductsController {
       );
       return product;
     } catch (error) {
-      console.log({ error });
-      throw new BadRequestException(error);
+      // console.log({ error });
+      throw new RpcException({
+        status: HttpStatus.UNAUTHORIZED,
+        message: `Product with id ${id} not found`,
+      });
     }
+    // return this.products_client
+    //   .send(
+    //     { cmd: 'find_one_product' },
+    //     {
+    //       id,
+    //     },
+    //   )
+    //   .pipe(
+    //     catchError((err) => {
+    //       throw new RpcException(err);
+    //     }),
+    //   );
   }
   @Delete(':id')
-  deleteProduct(@Param('id') id: string) {
-    return 'Delete one product' + id;
+  async deleteProduct(@Param('id') id: string) {
+    try {
+      console.log({id});
+      const product = await firstValueFrom(
+        this.products_client.send(
+          { cmd: 'delete_product' },
+          {
+            id,
+          },
+        ),
+      );
+      return product;
+    } catch (error) {
+      // console.log({ error });
+      throw new RpcException(error);
+    }
   }
   @Patch(':id')
-  patchProduct(@Param('id') id: string, @Body() body: any) {
-    return 'Update one product' + id;
+  async patchProduct(@Param('id') id: string, @Body() body: UpdateProductDto) {
+    return this.products_client
+      .send(
+        { cmd: 'update_product' },
+        {
+          id,
+          ...body,
+        },
+      )
+      .pipe(
+        catchError((err) => {
+          throw new RpcException(err);
+        }),
+      );
+    // try {
+    //   const product = await firstValueFrom(
+    //     this.products_client.send(
+    //       { cmd: 'update_product' },
+    //       {
+    //         id,
+    //         ...body,
+    //       },
+    //     ),
+    //   );
+    //   return product;
+    // } catch (error) {
+    //   // console.log({ error });
+    //   throw new RpcException({
+    //     status: HttpStatus.UNAUTHORIZED,
+    //     message: `product failed updating`,
+    //   });
+    // }
   }
 }
