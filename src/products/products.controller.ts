@@ -12,7 +12,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { catchError, firstValueFrom } from 'rxjs';
+import { catchError, finalize, firstValueFrom, tap } from 'rxjs';
 import { PaginationDto } from 'src/common';
 import { PRODUCT_SERVICE } from 'src/config';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -88,7 +88,7 @@ export class ProductsController {
   @Delete(':id')
   async deleteProduct(@Param('id') id: string) {
     try {
-      console.log({id});
+      console.log({ id });
       const product = await firstValueFrom(
         this.products_client.send(
           { cmd: 'delete_product' },
@@ -136,5 +136,71 @@ export class ProductsController {
     //     message: `product failed updating`,
     //   });
     // }
+  }
+  @Post('wait/:id')
+  async waitForR(@Param('id') id: string) {
+    try {
+      const now = Date.now();
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      console.log('terminando process 1...');
+      const res = await firstValueFrom(
+        this.products_client.send(
+          { cmd: 'wait_response' },
+          {
+            id,
+          },
+        ),
+      );
+      console.log({ res });
+      const time = Date.now() - now;
+      return `ready after ${time}`;
+    } catch (error) {
+      // console.log({ error });
+      throw new RpcException(error);
+    }
+  }
+  @Post('wait2/:id')
+  async waitForRe(@Param('id') id: string) {
+    const now = Date.now();
+    this.products_client
+      .send(
+        { cmd: 'wait_response' },
+        {
+          id,
+        },
+      )
+      .pipe(
+        tap((res) => {
+          console.log({ res });
+          const time = Date.now() - now;
+          console.log(`ready after ${time}`);
+          return `ready after ${time}`;
+        }),
+        catchError((err) => {
+          console.error('Error capturado:', err);
+          throw new RpcException(err);
+        }),
+      )
+      .subscribe({
+        next: (response) => console.log('Respuesta recibida:', response),
+        error: (err) => console.error('Error en la suscripción:', err),
+        complete: () => console.log('Proceso completado.'),
+      });
+    return 'Request sent, processing in background...';
+  }
+
+  @Post('not-wait/:id')
+  async notWait(@Param('id') id: string) {
+    try {
+      const now = Date.now();
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      console.log('terminando process 1...');
+      this.products_client.emit({ cmd: 'wait_response' }, { id });
+      const time = Date.now() - now;
+      return `ready after ${time}`;
+    } catch (error) {
+      // console.log({ error });
+      throw new RpcException(error);
+    }
   }
 }
