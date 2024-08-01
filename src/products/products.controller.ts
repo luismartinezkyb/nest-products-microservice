@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -47,6 +48,7 @@ export class ProductsController {
       return product;
     } catch (error) {
       console.log({ error });
+      throw new BadRequestException(error);
     }
   }
   @Delete(':id')
