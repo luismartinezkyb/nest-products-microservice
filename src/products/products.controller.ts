@@ -159,9 +159,11 @@ export class ProductsController {
       throw new RpcException(error);
     }
   }
-  @Post('wait2/:id')
+  @Post('not-wait2/:id')
   async waitForRe(@Param('id') id: string) {
     const now = Date.now();
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    console.log('terminando process 1...');
     this.products_client
       .send(
         { cmd: 'wait_response' },
@@ -186,7 +188,8 @@ export class ProductsController {
         error: (err) => console.error('Error en la suscripción:', err),
         complete: () => console.log('Proceso completado.'),
       });
-    return 'Request sent, processing in background...';
+    const time = Date.now() - now;
+    return `ready after ${time}`;
   }
 
   @Post('not-wait/:id')
